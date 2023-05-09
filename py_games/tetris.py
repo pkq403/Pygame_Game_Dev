@@ -8,7 +8,7 @@ import copy
 
 """
 Tetris
-
+CONTROLADO POR CONTROL GESTUAL
 Escrito por Pedro Castro
 """
 # Colors
@@ -18,7 +18,7 @@ Color_green = (14, 162, 44)
 Color_red = (255, 28, 28)
 Color_purple = (183, 14, 216)
 Color_yellow = (162, 160, 14) 
-Color_blue = (28, 130, 255)
+Color_blue = py.Color("aqua")
 Color_darkBlue = (8,22,155)
 Color_orange = (255,181,30)
 
@@ -72,7 +72,7 @@ class Piece():
         
         elif ind == 4: # |
             self.parts = [[START[0], START[1] + 2], [START[0], START[1]], [START[0], START[1] + 1], [START[0], START[1] + 3]]
-            self.color = py.Color("aqua")
+            self.color = Color_blue
             
     def get_parts(self):
         return self.parts
@@ -81,7 +81,6 @@ class Piece():
         floor = False
         for p in range(len(self.parts)):
             if limit[self.parts[p][0]][self.parts[p][1] + 1]: # si toca el suelo en ese punto
-                #print("COLISION: pieza: ", self.parts[p][1] + 1, "suelo: ", limit[self.parts[p][0]])
                 floor = True
                 break
         # si ninguna pieza supera el limite
@@ -102,8 +101,6 @@ class Piece():
                 a = p[0]
                 p[0] = ox + (oy - p[1])
                 p[1] = oy + (a - ox)
-                # TODO: si una pieza se sale al girar moverla para recolocarla dentro del grid en lugar de
-                # no permitirla girar
                 if p[0] >= NUMCELLSX:
                     resta = NUMCELLSX - p[0] - 1
                     if resta < offset[0]:
@@ -160,7 +157,7 @@ class Tetris():
     
     def __init__(self):
         self.curPiece = None # Piezas actuales (grid + saved)
-        self.nextPiece = Piece(2)
+        self.nextPiece = Piece(random.randint(0, 4))
         self.floor = [] 
         self.lenFloor = 0
         self.points = 0
@@ -181,6 +178,13 @@ class Tetris():
         for i in self.limitFloor:
             i[NUMCELLSY] = True
         
+        self.delRows = []
+        self.colorTetris = [Color_white, Color_blue]
+        self.colorTetrisC = 0
+        self.colorDel = self.colorTetris[0]
+        self.borrar = False
+        
+        
     def main(self):
         WIN.blit(BG, (0,0))
         
@@ -200,28 +204,85 @@ class Tetris():
         
             self.paintPieces() # pinta las piezas
             self.paintFloor() # pinta el suelo
+            if self.borrar:
+                self.animTetris()
             self.paint_grid()
             
             py.display.flip()
             clock.tick(60)
         py.display.quit()
         py.quit()
+    
+    def calcTetris(self): # calcula si hay lineas completas en ese frame
+        y_iter = 0
+        savedRows = []
+        while y_iter < NUMCELLSY:
+            allRow = True
+            for x in self.limitFloor:
+                if x[y_iter] == False:
+                    allRow = False
+            if allRow == True:
+                savedRows.append(y_iter)
+            y_iter += 1
+        if savedRows:
+            self.borrar = True
+            self.delRows = savedRows
         
-    def deletePiece(self, isFloor):
+    def animTetris(self): # anima las lineas antes de borrarlas en 3 fases azul -> 10 frames, blanco -> 10 frames, azul -> 10 frames
+        color = self.colorDel
+        borra = False
+        if (self.colorTetrisC % 20) == 0:
+            self.colorDel = self.colorTetris[1]
+        if (self.colorTetrisC % 40) == 0:
+            self.colorDel = self.colorTetris[0]
+        if (self.colorTetrisC % 60) == 0:
+            self.colorDel = self.colorTetris[1]
+        if (self.colorTetrisC % 80) == 0:
+            self.colorDel = self.colorTetris[0]
+            self.colorTetrisC = 0
+            borra = True
+            
+        for y in self.delRows:
+            for x in range(NUMCELLSX):
+                self.grid[x][y].paint(color)
+            
+        self.colorTetrisC += 1
+        
+        if borra:
+            self.delLines()
+    
+    def delLines(self): # Borra las lineas del suelo y quita esas piezas(bloques) del suelo
+        for y in self.delRows:
+            for x in range(NUMCELLSX):
+                self.limitFloor[x][y] = False
+        for y in self.delRows:
+            for pieza in self.floor:
+                deletes = []
+                for i in range(len(pieza[0])):
+                    if y in pieza[0][i]:
+                        deletes.append(pieza[0][i])
+                for d in deletes:
+                    pieza[0].remove(d)
+        self.delRows = [] # vacia lista
+        self.borrar = False # booleano a false
+        
+    
+    def putPiece(self, isFloor):
         if isFloor and self.curPiece != None:
             self.floor.append([self.curPiece.get_parts(), self.curPiece.color])
             self.curPiece = None
             
-    def recalcFloor(self):
+    def recalcFloor(self):  # calcula el suelo y si hay tetris
         if self.lenFloor != 0 or len(self.floor) > self.lenFloor:
             lastPiece = self.floor[-1]
             for i in lastPiece[0]:
                 self.limitFloor[i[0]][i[1]] = True # Pone esas posiciones como suelo
+            self.calcTetris() 
         
     def fall(self):
         if self.timer == self.delay:
             self.timer = 0
-            self.deletePiece(self.curPiece.fall(self.limitFloor))
+            self.putPiece(self.curPiece.fall(self.limitFloor))
         self.timer += 1
             
     def pieceGen(self):
@@ -249,7 +310,7 @@ class Tetris():
         elif event.key == K_w: # cambia la pieza por la guardada
             pass
         elif event.key == K_s: # baja 1 la pieza (eje y) /avanza mas rapido hacia el suelo/
-            self.deletePiece(self.curPiece.fall(self.limitFloor))
+            self.putPiece(self.curPiece.fall(self.limitFloor))
         elif event.key == K_m: # gira 90 grad
             self.curPiece.turnRight()
         elif event.key == K_n: # gira 270 grad (90 en sentido antihorario)
@@ -259,7 +320,6 @@ class Tetris():
         
     def paintPieces(self):
         for i in self.curPiece.get_parts():
-            print(i[0], i[1])
             self.grid[i[0]][i[1]].paint(self.curPiece.color)
     
     def paintFloor(self):
