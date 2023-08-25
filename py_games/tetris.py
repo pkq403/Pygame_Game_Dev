@@ -157,6 +157,7 @@ class Tetris():
     
     def __init__(self):
         self.curPiece = None # Piezas actuales (grid + saved)
+        #self.nextPiece = Piece(0)
         self.nextPiece = Piece(random.randint(0, 4))
         self.floor = [] 
         self.lenFloor = 0
@@ -231,13 +232,13 @@ class Tetris():
     def animTetris(self): # anima las lineas antes de borrarlas en 3 fases azul -> 10 frames, blanco -> 10 frames, azul -> 10 frames
         color = self.colorDel
         borra = False
+        if (self.colorTetrisC % 10) == 0:
+            self.colorDel = self.colorTetris[1]
         if (self.colorTetrisC % 20) == 0:
+            self.colorDel = self.colorTetris[0]
+        if (self.colorTetrisC % 30) == 0:
             self.colorDel = self.colorTetris[1]
         if (self.colorTetrisC % 40) == 0:
-            self.colorDel = self.colorTetris[0]
-        if (self.colorTetrisC % 60) == 0:
-            self.colorDel = self.colorTetris[1]
-        if (self.colorTetrisC % 80) == 0:
             self.colorDel = self.colorTetris[0]
             self.colorTetrisC = 0
             borra = True
@@ -255,6 +256,7 @@ class Tetris():
         for y in self.delRows:
             for x in range(NUMCELLSX):
                 self.limitFloor[x][y] = False
+                
         for y in self.delRows:
             for pieza in self.floor:
                 deletes = []
@@ -263,10 +265,21 @@ class Tetris():
                         deletes.append(pieza[0][i])
                 for d in deletes:
                     pieza[0].remove(d)
+                    
         self.delRows = [] # vacia lista
         self.borrar = False # booleano a false
         
-    
+        # Recalcula el suelo calculando las piezas que deben caer
+        # si una pieza tiene todos su bloques mas bajos sin suelo debajo baja toda la pieza
+        
+        floor_pieces = []
+        for b in range(len(self.floor)):
+            floor_pieces.append([b,Tetris.floor_piece(self.floor[b][0])])
+            
+        falling_pieces = self.pieces_to_fall(floor_pieces)
+        self.fallen_pieces(falling_pieces)
+                    
+        
     def putPiece(self, isFloor):
         if isFloor and self.curPiece != None:
             self.floor.append([self.curPiece.get_parts(), self.curPiece.color])
@@ -288,6 +301,7 @@ class Tetris():
     def pieceGen(self):
         if self.curPiece == None:
             self.curPiece = self.nextPiece
+            #self.nextPiece = Piece(0)
             self.nextPiece = Piece(random.randint(0, 4))
             
     def lateralCol(self, moved): # Return True si choca lateralmente con algun bloque
@@ -325,14 +339,52 @@ class Tetris():
     def paintFloor(self):
         for p in self.floor:
             for a in p[0]:
+                print("index x, y : ", a[0], a[1])
                 self.grid[a[0]][a[1]].paint(p[1])
+                    
         
     def paint_grid(self):
         for x in self.grid:
             for y in x:
                 y.paint(Color_black, 1)
+                
+    # Auxiliary methods
+    '''
+    Returns the lowest blocks of a piece
+    '''
+    def floor_piece(piece):
+        mn = -1
+        floor_piece = []
+        for i in piece:
+            if i[1] > mn:
+                mn = i[1]
+        for i in piece:
+            if i[1] == mn:
+                floor_piece.append(i)
+        return floor_piece
+    '''
     
-
+    '''
+    def pieces_to_fall(self, fl_pieces):
+        index_fallers = []
+        fall = 1
+    
+        for p in fl_pieces:
+            aux = None
+            if all(self.limitFloor[i[0]][i[1] + 1] ==  False for i in p[1]):
+                aux = p[1]
+            if not aux == None:
+                while(true):
+                    if not all(self.limitFloor[i[0]][i[1] + fall] ==  False for i in p[1]):
+                        break
+                    fall += 1
+                index_fallers.append(aux, fall)
+        return [index_fallers, fall]
+    
+    def fallen_pieces(self, index_fallers):
+        for i in index_fallers:
+            for a in self.floor[i][0]:
+                a[1] += index_fallers[]
 if __name__=='__main__':
     te = Tetris()
     te.main()
